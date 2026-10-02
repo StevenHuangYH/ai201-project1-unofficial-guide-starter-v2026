@@ -92,30 +92,36 @@ The bad: known damp problem on the ground floor; two rooms were taken offline in
 
 ## Sample Answer
 
-<!-- One complete question and answer, pasted as text, with the source line
-     visible. Milestone 4. -->
-
-**Question:**
+**Question:** How is housing lottery priority determined for juniors and seniors?
 
 **Answer:**
 
 ```
+For juniors and seniors, housing lottery priority is ordered by accumulated credit hours first, with a random tie-break used only when necessary. 
+
+Source: `admin_housing_lottery.txt`
+
+Sources retrieved: admin_grade_appeals.txt, admin_housing_lottery.txt, advising_registration.txt, course_stat_150_exams.txt, housing_tamsin_court.txt
 ```
 
-**My relevance cutoff:**
+**My relevance cutoff:** `0.60`
 
-<!-- The number you set in config.py, and how you got there.
+To calibrate the cutoff, we ran our five in-corpus test questions alongside the five out-of-scope questions from `questions.py` and recorded the best cosine distance for each. The in-corpus questions clustered tightly between 0.205 and 0.480, while the out-of-scope questions clustered between 0.825 and 0.934. 
 
-     You ran five questions your corpus covers and the five in OUT_OF_SCOPE
-     that it clearly doesn't, and wrote down the best distance for each. What
-     did those two groups look like? Where was the gap? Put the actual numbers
-     here — the table below wants all ten rows.
-
-     Milestone 4. -->
+This created a wide, clean gap between 0.480 and 0.825. Setting the cutoff at 0.60 places it safely in this buffer (~0.12 above our furthest in-corpus match and ~0.22 below our closest out-of-scope match). At 0.60, all 5 in-corpus questions are admitted and all 5 out-of-scope questions are halted at the relevance gate before any model calls are made.
 
 | Question | In corpus? | Best distance |
 |---|---|---|
-|  |  |  |
+| How is housing lottery priority determined for juniors and seniors? | Yes | 0.235 |
+| What are the lunch wait times at Kestrel Commons between 12:15 and 1:00? | Yes | 0.205 |
+| When is the best time to do laundry in Fenwick Court to avoid waiting? | Yes | 0.297 |
+| Are CS 210 exams curved? | Yes | 0.386 |
+| Which shuttle stop gets skipped when the driver is behind schedule? | Yes | 0.480 |
+| What is the capital of Mongolia? | No | 0.825 |
+| How do I change the oil in a diesel engine? | No | 0.934 |
+| Who won the 1994 World Cup? | No | 0.886 |
+| What is the recommended dosage of ibuprofen for a headache? | No | 0.844 |
+| How do I write a for loop in Rust? | No | 0.896 |
 
 ## How I Used AI
 
