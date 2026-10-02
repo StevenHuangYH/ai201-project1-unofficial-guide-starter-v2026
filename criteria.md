@@ -23,8 +23,7 @@ For at least 4 of my 5 test questions, the retrieved chunks include one that
 contains the answer.
 
 **Why this target:**
-<!-- e.g. "One of my questions is about a topic only two documents mention, so
-     I expect that one to be hard." -->
+I picked 4 of 5 because while every test question has a direct corresponding document in `campus_life`, one question (Fenwick Court laundry) shares vocabulary and concepts with multiple other residence hall laundry documents, meaning semantic retrieval could potentially rank distractor dorm documents ahead of the exact match.
 
 ---
 
@@ -33,8 +32,7 @@ contains the answer.
 Every answer the system produces names at least one source document.
 
 **Why this target:**
-<!-- Why all five and not four? What about your setup makes that achievable —
-     or what would have to go wrong for it not to be? -->
+I set this to all 5 because `generate.py` injects a strict `GROUNDING_INSTRUCTION` that commands the model to name the source document, and `build_prompt` prefixes every retrieved chunk with an explicit `[from filename]` label. If any answer omits a source, it indicates a failure of prompt compliance.
 
 ---
 
@@ -44,52 +42,26 @@ When I ask a question my documents clearly don't cover, the relevance gate
 stops it and the system returns "I don't have enough information about that" —
 in at least 4 of 5 tries.
 
-<!-- The five questions are the ones in `OUT_OF_SCOPE` at the bottom of
-     `questions.py`, and `run_eval.py` puts them through the gate and writes
-     what happened into your run log. Swap them for your own if you'd rather —
-     just keep five of them, or the "4 of 5" above has nothing to be 4 of. -->
-
 **Why this target:**
-<!-- What did your distances look like when you set the cutoff in Milestone 4?
-     Was there a clean gap, or did the two groups overlap? -->
+I set this to 4 of 5 because the relevance gate stops queries with cosine distance greater than our threshold before generation ever occurs. For out-of-scope queries (like diesel engines or world capitals), distances consistently sit well above 0.70, though 4 of 5 leaves tolerance for queries that might share accidental surface vocabulary with campus topics.
 
 ---
 
-## 4. Something about your chunks
+## 4. Complete semantic thoughts with no mid-sentence cuts
 
-<!-- YOU WRITE THIS ONE.
-
-     How would you know if your chunks were the right size? Name something
-     countable or observable.
-
-     Examples of the right shape — don't copy these, they should come from
-     what you actually saw in Milestone 3:
-       - "At least 4 of 5 sampled chunks read as a complete thought, with no
-          sentence cut in half at either end."
-       - "No chunk is shorter than 200 characters, since anything below that
-          in my corpus turned out to be a heading with no content under it." -->
-
-
+Across all generated chunks in the corpus, 100% of chunks begin on a clean heading or sentence boundary and terminate on valid sentence-ending punctuation (. ! ?), with zero sentences split across chunks.
 
 **Why this target:**
-
-
+Documents in `campus_life` are short (averaging ~317 characters across 1–3 paragraphs). Fixed character chunking frequently cuts through sentences or creates tiny 2-character trailing fragments. Enforcing structural paragraph and sentence boundary splitting guarantees that every chunk stands alone as an intelligible unit.
 
 ---
 
-## 5. Your choice
+## 5. Ground-truth source attribution
 
-<!-- YOU WRITE THIS ONE TOO.
-
-     Pick something you actually care about getting right. It could be about
-     speed, about refusals, about a particular kind of question your corpus
-     handles badly, about source attribution being correct rather than merely
-     present — anything, as long as it names a number or an observable
-     outcome. -->
-
-
+For at least 4 of the 5 test questions, the source document cited in the generated answer matches the specific ground-truth document that contains the answer.
 
 **Why this target:**
+Criterion 2 only verifies that *some* source filename is named; Criterion 5 tests that the model actually attributes the answer to the correct ground-truth document rather than citing a distractor retrieved in top-k. A target of 4 of 5 allows for cases where closely related documents (e.g. course overview vs course exams) are both present in the prompt context.
 
 
 
