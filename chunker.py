@@ -80,24 +80,135 @@ def fallback_split(
     return chunks
 
 
-def split_documents(documents: list[Document]) -> list[Chunk]:
+import re
+
+
+def _split_into_sentences(text: str) -> list[str]:
+    parts = re.split(r"(?<=[.!?])\s+", text)
+    return [p.strip() for p in parts if p.strip()]
+
+
+def split_documents(
+    documents: list[Document],
+    chunk_size: int | None = None,
+    overlap: int | None = None,
+) -> list[Chunk]:
     """
-    Split documents into chunks. ⚠️ REPLACE THE BODY OF THIS IN MILESTONE 3.
+    Split documents into chunks. Replaces the generic fallback chunker.
 
-    Right now it just calls the fallback. That is the plain, generic behaviour
-    the brief is talking about.
-
-    When you write your own strategy, set `produced_by` to
-    "chunker.py::split_documents" so your README's Sample Chunks section names
-    the right function. `app.py chunks` prints that string for you.
-
-    Things worth thinking about before you write any code:
-      - Are your documents short posts or long guides?
-      - Is the useful information in one sentence, or spread over a paragraph?
-      - Would splitting on paragraph breaks keep more thoughts intact than
-        splitting on a character count?
+    Strategy for campus_life:
+      - Posts are short (average ~317 chars). Posts under chunk_size are preserved
+        whole to maintain full topic coherence and heading context.
+      - Posts exceeding chunk_size are split along paragraph boundaries. If a
+        single paragraph exceeds chunk_size, it is split on complete sentence
+        boundaries.
+      - Each split chunk retains the document title/heading so context is never
+        lost (e.g. which dorm or course is being reviewed).
+      - Overlap preserves boundary paragraphs or sentences without cutting
+        words or thoughts in half.
+      - Sets produced_by to 'chunker.py::split_documents'.
     """
-    return fallback_split(documents)
+    max_chars = chunk_size or config.CHUNK_SIZE
+    overlap_chars = overlap or config.CHUNK_OVERLAP
+
+    chunks: list[Chunk] = []
+    for doc in documents:
+        text = doc.text.strip()
+        lines = [line.strip() for line in text.split("\n") if line.strip()]
+        title = lines[0] if lines else ""
+
+        # If the entire post fits within chunk_size, keep it intact
+        if len(text) <= max_chars:
+            chunks.append(
+                Chunk(
+                    text=text,
+                    source=doc.source,
+                    index=0,
+                    produced_by="chunker.py::split_documents",
+                )
+            )
+            continue
+
+        paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+        has_title = len(paragraphs) > 1 and (paragraphs[0] == title or len(paragraphs[0]) < 60)
+        heading_prefix = f"{title}\n\n" if has_title else ""
+        body_paras = paragraphs[1:] if has_title else paragraphs
+
+        curr_paras: list[str] = []
+        curr_len = len(heading_prefix)
+        index = 0
+
+        for p in body_paras:
+            # If paragraph itself is too large, split into sentences
+            if len(p) + len(heading_prefix) > max_chars:
+                sentences = _split_into_sentences(p)
+                curr_sents: list[str] = []
+                s_len = len(heading_prefix)
+                for s in sentences:
+                    if curr_sents and (s_len + len(s) + 1 > max_chars):
+                        c_text = heading_prefix + " ".join(curr_sents)
+                        chunks.append(
+                            Chunk(
+                                text=c_text.strip(),
+                                source=doc.source,
+                                index=index,
+                                produced_by="chunker.py::split_documents",
+                            )
+                        )
+                        index += 1
+                        # Overlap: keep the last sentence
+                        curr_sents = [curr_sents[-1]] if curr_sents else []
+                        s_len = len(heading_prefix) + (len(curr_sents[0]) + 1 if curr_sents else 0)
+                    curr_sents.append(s)
+                    s_len += len(s) + 1
+                if curr_sents:
+                    c_text = heading_prefix + " ".join(curr_sents)
+                    chunks.append(
+                        Chunk(
+                            text=c_text.strip(),
+                            source=doc.source,
+                            index=index,
+                            produced_by="chunker.py::split_documents",
+                        )
+                    )
+                    index += 1
+                continue
+
+            # If adding this paragraph exceeds max_chars, flush current chunk
+            if curr_paras and (curr_len + len(p) + 2 > max_chars):
+                c_text = heading_prefix + "\n\n".join(curr_paras)
+                chunks.append(
+                    Chunk(
+                        text=c_text.strip(),
+                        source=doc.source,
+                        index=index,
+                        produced_by="chunker.py::split_documents",
+                    )
+                )
+                index += 1
+                # Overlap: keep previous paragraph if it fits in overlap_chars
+                if len(curr_paras[-1]) <= overlap_chars:
+                    curr_paras = [curr_paras[-1]]
+                    curr_len = len(heading_prefix) + len(curr_paras[0]) + 2
+                else:
+                    curr_paras = []
+                    curr_len = len(heading_prefix)
+
+            curr_paras.append(p)
+            curr_len += len(p) + 2
+
+        if curr_paras:
+            c_text = heading_prefix + "\n\n".join(curr_paras)
+            chunks.append(
+                Chunk(
+                    text=c_text.strip(),
+                    source=doc.source,
+                    index=index,
+                    produced_by="chunker.py::split_documents",
+                )
+            )
+
+    return chunks
 
 
 def describe(chunks: list[Chunk]) -> str:

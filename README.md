@@ -29,53 +29,65 @@
 
 ## Chunking Strategy
 
-**Chunk size:**
-**Overlap:**
+**Chunk size:** 450 characters
+**Overlap:** 100 characters
 
-<!-- What about YOUR documents made you pick these numbers? Short posts and
-     long sectioned guides don't want the same chunking, and "800 seemed
-     reasonable" earns nothing. Point at something you noticed when you read
-     the documents in Milestone 1.
+When inspecting the `campus_life` corpus in Milestone 1, we found that the 88 documents are brief student posts averaging 317 characters (ranging from 178 to 549 characters). Each document consists of an informative title line (e.g. `Kestrel Commons` or `On the housing lottery`) followed by 1 to 3 short paragraphs. 
 
-     If you changed your mind partway through, say so and say why. That's worth
-     more than pretending you got it right first time.
+The starter chunker used an 800-character fixed window, which resulted in 88 documents turning into 88 un-split chunks. However, treating every post as an immutable unit failed to address longer posts like `housing_old_brewhouse.txt` (549 characters) and `housing_morrow_house.txt` (464 characters), which combine multiple distinct topics (such as building history, room layouts, damp/heating problems, and laundry costs). Conversely, naive fixed-character chunking cut sentences in half and severed subsequent chunks from their document titles, producing orphaned fragments (e.g. laundry hours without mentioning which residence hall they applied to).
 
-     Milestone 3. -->
+We replaced the chunker with a semantic paragraph- and boundary-aware strategy (`chunker.py::split_documents`). Posts under 450 characters remain whole so they keep their full topical coherence and title context. For posts exceeding 450 characters, we split cleanly along paragraph breaks (or sentence boundaries if an individual paragraph exceeds the threshold). Crucially, the chunker prepends the document title to every chunk created from that document, and retains a 100-character paragraph/sentence overlap across chunk splits. This ensures that every chunk stands alone as a self-contained, complete thought with zero sentences cut in half.
 
 ## Sample Chunks
 
-<!-- Five chunks, pasted as text. Label each one and name the file it came from
-     AND the function that produced it — the grader checks your code against
-     what you claim here.
-
-     `python app.py chunks -n 5` prints all three for you. Copy them straight
-     across.
-
-     Milestone 3. -->
-
-**Chunk 1** — source: `` — produced by: ``
+**Chunk 1** — source: `admin_add_drop_deadline.txt#0` — produced by: `chunker.py::split_documents`
 
 ```
+On the add/drop deadline
+
+You can add a course through the end of the second week. Dropping is a longer window — through the end of week six — but a drop after week two shows as a W on your transcript. Nothing anywhere on the registrar's site says this plainly, and students find out from each other.
 ```
 
-**Chunk 2** — source: `` — produced by: ``
+**Chunk 2** — source: `course_biol_160_exams.txt#0` — produced by: `chunker.py::split_documents`
 
 ```
+BIOL 160 Cell Biology — assessment
+
+Four unit tests and a cumulative final. Not curved.
+
+The unit tests come fast, roughly every three weeks; falling behind once is very hard to recover from.
 ```
 
-**Chunk 3** — source: `` — produced by: ``
+**Chunk 3** — source: `course_math_220_exams.txt#0` — produced by: `chunker.py::split_documents`
 
 ```
+MATH 220 Linear Algebra — assessment
+
+Two midterms and a cumulative final. Curved to a b- median.
+
+The problem sets are the course; the lectures make sense afterwards rather than during.
 ```
 
-**Chunk 4** — source: `` — produced by: ``
+**Chunk 4** — source: `dining_the_ridgeway_cafe.txt#0` — produced by: `chunker.py::split_documents`
 
 ```
+The Ridgeway Café
+
+Second-year here. Wait times: 10 to 15 minutes at 12:30, none after 2:00. The thing worth going for is the only place on campus with real espresso. The thing to know is that seating is tight; about 40 seats for a building of 900.
+
+Hours are 7:00am to 4:00pm weekdays only. Costs declining balance only, no meal swipes.
 ```
 
-**Chunk 5** — source: `` — produced by: ``
+**Chunk 5** — source: `housing_morrow_house.txt#0` — produced by: `chunker.py::split_documents`
 
 ```
+Morrow House — what it's actually like
+
+Just finished a year in this building. Built 1954, partially renovated 2008. Rooms are singles and doubles, hall bathrooms.
+
+The good: cheapest housing tier by about $900 a year, and the singles are real singles.
+
+The bad: known damp problem on the ground floor; two rooms were taken offline in 2024.
 ```
 
 ## Sample Answer
