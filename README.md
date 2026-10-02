@@ -1,31 +1,11 @@
 # The Unofficial Guide
 
-<!-- Replace this line with your name and which corpus you picked. -->
-
-> **This file is your submission.** Fill it in as you go — most sections get
-> written during the milestone that produces them, not at the end.
->
-> How the starter works, and every command you'll need, is in `RUNNING.md`.
-> Leave that file alone.
->
-> **Paste everything as text.** No screenshots, no video. A typed table gets
-> full credit; a picture of the same table gets none.
->
-> Delete these instruction blocks as you replace them. The `<!-- -->` comments
-> are notes to you and don't show up when the page renders — you can leave them
-> or remove them.
-
----
-
-# Unit 1
+**Author:** Steven Huang  
+**Corpus:** `campus_life`
 
 ## What This Does
 
-<!-- Three or four sentences. Which corpus you picked, and the kinds of
-     questions your system answers. Write it for someone who has never seen
-     this repo.
-
-     Milestone 5. -->
+The Unofficial Guide is a grounded question-answering system built on the `campus_life` corpus—a collection of 88 peer-written student notes and guides. It makes practical, word-of-mouth campus knowledge searchable, answering plain questions about dorm living conditions, course grading curves, dining hall peak hours, and unwritten administrative rules. When given a query, the system retrieves relevant semantic chunks from a local Chroma vector database and synthesizes a concise, factual answer using Gemini while citing the exact source documents. If a question falls outside the corpus or lacks sufficient evidence, a relevance gate rejects it immediately to prevent hallucinations.
 
 ## Chunking Strategy
 
@@ -125,18 +105,9 @@ This created a wide, clean gap between 0.480 and 0.825. Setting the cutoff at 0.
 
 ## How I Used AI
 
-<!-- Two specific moments. For each: what you asked for, what came back, and
-     what you changed about it.
+**1.** During the initial setup check, `test.py` failed with an `ImportError` on `ChannelCredentials` in `grpc` and a `ModuleNotFoundError` on `google.genai._interactions.types.model`. I prompted the AI to inspect `site-packages` to find out why these pinned packages were failing to import. The AI identified that Windows/iCloudDrive file synchronization had duplicated and renamed package files with numbers (e.g., creating `'__init__ 123.py'` inside `grpc/` and `'model 2.py'` inside `google/genai/_interactions/types/`). Instead of reinstalling the entire virtual environment from scratch, I directed the assistant to scan the venv specifically for space-and-number conflict artifacts and rename them back to their canonical filenames (`__init__.py`, `model.py`), successfully resolving the imports without disrupting package pins.
 
-     "I asked Claude to write the chunking function from my notes. It ignored
-     the overlap, so I added that myself" is the level of detail we're after.
-     "I used AI to help me code" is not.
-
-     Milestone 5. -->
-
-**1.**
-
-**2.**
+**2.** In Milestone 3, I asked the AI to write a chunker that respected document structure rather than slicing at arbitrary character lengths. The initial suggestion split strictly on double-newlines (`\n\n`), but testing revealed that it separated the document title (e.g. `Kestrel Commons`) into an isolated 15-character chunk, leaving subsequent paragraphs without their subject context. I adjusted the implementation so the chunker identifies document headings and prepends the heading to every generated chunk from that document, keeps short documents (< 450 characters) unified as single complete chunks, and falls back to sentence-boundary splitting with paragraph overlap for longer documents.
 
 <!-- ── Stretch features ─────────────────────────────────────────────────────
      Doing one? Say so here BEFORE you start. A feature this README never
