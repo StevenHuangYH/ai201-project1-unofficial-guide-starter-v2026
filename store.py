@@ -178,16 +178,41 @@ def build_index(
     return len(chunks)
 
 
+import re
+from rank_bm25 import BM25Okapi
+
+_bm25_cache: dict[str, tuple[BM25Okapi, list[str], list[dict], list[str]]] = {}
+
+
+def _tokenize(text: str) -> list[str]:
+    return re.findall(r"\w+", text.lower())
+
+
+def _get_bm25_index(collection, name: str):
+    if name not in _bm25_cache or len(_bm25_cache[name][1]) != collection.count():
+        data = collection.get()
+        docs = data["documents"]
+        metas = data["metadatas"]
+        ids = data["ids"]
+        tokens = [_tokenize(d) for d in docs]
+        bm25 = BM25Okapi(tokens)
+        _bm25_cache[name] = (bm25, docs, metas, ids)
+    return _bm25_cache[name]
+
+
 def search(
     question: str,
     top_k: int | None = None,
     corpus: str | None = None,
     variant: str = "default",
+    hybrid: bool = True,
 ) -> list[Result]:
     """
-    Retrieve the chunks closest in meaning to a question.
+    Retrieve the chunks closest to a question.
 
-    Returns them nearest-first, each with its distance.
+    Uses Hybrid Search (BM25 keyword search + dense semantic vectors combined
+    via Reciprocal Rank Fusion) by default, providing both keyword precision for
+    proper nouns/entities and semantic understanding for paraphrases.
     """
     top_k = top_k or config.TOP_K
     name = config.collection_name(corpus, variant)
@@ -199,22 +224,82 @@ def search(
             f"No index called '{name}'. Run `python app.py index` first."
         ) from exc
 
+    total_count = collection.count()
+    if total_count == 0:
+        return []
+
+    # 1. Dense semantic search
+    dense_fetch_k = min(20, total_count)
     raw = collection.query(
         query_embeddings=embed([question]),
-        n_results=min(top_k, collection.count()),
+        n_results=dense_fetch_k,
     )
 
+    dense_docs = raw["documents"][0]
+    dense_metas = raw["metadatas"][0]
+    dense_distances = raw["distances"][0]
+    dense_ids = raw["ids"][0]
+
+    if not hybrid:
+        results: list[Result] = []
+        for text, meta, distance in zip(
+            dense_docs[:top_k], dense_metas[:top_k], dense_distances[:top_k]
+        ):
+            results.append(
+                Result(
+                    text=text,
+                    source=str(meta.get("source", "unknown")),
+                    label=f"{meta.get('source', 'unknown')}#{meta.get('index', 0)}",
+                    distance=float(distance),
+                    produced_by=str(meta.get("produced_by", "unknown")),
+                )
+            )
+        return results
+
+    # 2. BM25 keyword search
+    bm25, all_docs, all_metas, all_ids = _get_bm25_index(collection, name)
+    q_tokens = _tokenize(question)
+    bm25_scores = bm25.get_scores(q_tokens)
+    bm25_ranked_indices = sorted(
+        range(len(bm25_scores)), key=lambda i: bm25_scores[i], reverse=True
+    )
+
+    dense_rank = {dense_ids[i]: i + 1 for i in range(len(dense_ids))}
+    id_dist = {dense_ids[i]: float(dense_distances[i]) for i in range(len(dense_ids))}
+    id_to_idx = {all_ids[i]: i for i in range(len(all_ids))}
+    bm25_rank = {
+        all_ids[bm25_ranked_indices[r]]: r + 1
+        for r in range(len(bm25_ranked_indices))
+    }
+
+    # 3. Reciprocal Rank Fusion (RRF)
+    k = 60
+    candidates = set(dense_ids) | set(
+        all_ids[bm25_ranked_indices[r]] for r in range(min(15, len(all_ids)))
+    )
+    fused_scores = {}
+    for cid in candidates:
+        r_dense = dense_rank.get(cid, 100)
+        r_bm25 = bm25_rank.get(cid, 100)
+        fused_scores[cid] = (1.0 / (k + r_dense)) + (1.0 / (k + r_bm25))
+
+    sorted_cids = sorted(
+        candidates, key=lambda cid: fused_scores[cid], reverse=True
+    )[:top_k]
+
     results: list[Result] = []
-    for text, meta, distance in zip(
-        raw["documents"][0], raw["metadatas"][0], raw["distances"][0]
-    ):
+    for cid in sorted_cids:
+        idx = id_to_idx[cid]
+        dist = id_dist.get(cid)
+        if dist is None:
+            dist = 1.0
         results.append(
             Result(
-                text=text,
-                source=str(meta.get("source", "unknown")),
-                label=f"{meta.get('source', 'unknown')}#{meta.get('index', 0)}",
-                distance=float(distance),
-                produced_by=str(meta.get("produced_by", "unknown")),
+                text=all_docs[idx],
+                source=str(all_metas[idx].get("source", "unknown")),
+                label=f"{all_metas[idx].get('source', 'unknown')}#{all_metas[idx].get('index', 0)}",
+                distance=dist,
+                produced_by=str(all_metas[idx].get("produced_by", "unknown")),
             )
         )
     return results
