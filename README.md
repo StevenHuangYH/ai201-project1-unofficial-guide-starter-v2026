@@ -124,46 +124,75 @@ This created a wide, clean gap between 0.480 and 0.825. Setting the cutoff at 0.
 
 ## Run Log — Before
 
-<!-- Your five criteria, three runs each. `python run_eval.py --label before`
-     runs the questions, puts the OUT_OF_SCOPE ones through the gate, and
-     writes it all into results/ for you. Targets come from criteria.md; the
-     verdict column is your call.
-
-     Criterion 3 is measured in one deterministic pass rather than three, so
-     the same number goes in all three run columns. That's correct, not lazy.
-
-     Milestone 1. -->
-
 | Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
 |---|---|---|---|---|---|
-| 1. Retrieved chunk contains the answer | 4 of 5 |  |  |  |  |
-| 2. Every answer names a source | 5 of 5 |  |  |  |  |
-| 3. Gate stops out-of-corpus questions | 4 of 5 |  |  |  |  |
-| 4. | | | | | |
-| 5. | | | | | |
+| 1. Retrieved chunk contains the answer | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 2. Every answer names a source | 5 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 3. Gate stops out-of-corpus questions | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
+| 4. Complete semantic thoughts with no mid-sentence cuts | 100% | 91/91 | 91/91 | 91/91 | MET |
+| 5. Ground-truth source attribution | 4 of 5 | 5/5 | 5/5 | 5/5 | MET |
 
-<!-- Underneath, paste the REAL output for each criterion from one of your
-     runs — the actual text your system produced, not a description of it.
-     Name the file and function that produced it. -->
+### Real Output from Evaluation Run (Before)
+
+**Criterion 1: Retrieved chunk contains the answer**  
+*Produced by: `store.py::search` (Run 1, Question 1)*
+```
+Question: How is housing lottery priority determined for juniors and seniors?
+Best distance: 0.2354 (passed the gate)
+Sources retrieved: admin_grade_appeals.txt, admin_housing_lottery.txt, advising_registration.txt, course_stat_150_exams.txt, housing_tamsin_court.txt
+
+Chunk excerpt from admin_housing_lottery.txt#0:
+"The housing lottery is not random in the way most people assume. Rising sophomores get a number drawn at random, but juniors and seniors are ordered by accumulated credit hours first, and only tie-break randomly."
+```
+
+**Criterion 2: Every answer names a source**  
+*Produced by: `generate.py::answer_from_chunks` (Run 1, Question 2)*
+```
+Question: What are the lunch wait times at Kestrel Commons between 12:15 and 1:00?
+Answer:
+The wait times at Kestrel Commons between 12:15 and 1:00 are 20 to 25 minutes. 
+
+Source: `dining_kestrel_commons.txt` (and also confirmed in `dining_kestrel_commons_followup.txt`).
+```
+
+**Criterion 3: Gate stops out-of-corpus questions**  
+*Produced by: `gate.py::check` (Deterministic Out-of-Scope Run)*
+```
+Question: What is the capital of Mongolia?
+Best distance: 0.825 (cutoff: 0.60)
+Gate result: refused
+Response text: "I don't have enough information about that."
+```
+
+**Criterion 4: Complete semantic thoughts with no mid-sentence cuts**  
+*Produced by: `chunker.py::split_documents` (Sample Chunk from Corpus)*
+```
+Source: admin_add_drop_deadline.txt#0
+Text:
+"On the add/drop deadline
+
+You can add a course through the end of the second week. Dropping is a longer window — through the end of week six — but a drop after week two shows as a W on your transcript. Nothing anywhere on the registrar's site says this plainly, and students find out from each other."
+(Starts on clean heading boundary, ends on terminal period '.', length: 301 chars)
+```
+
+**Criterion 5: Ground-truth source attribution**  
+*Produced by: `generate.py::answer_from_chunks` (Run 1, Question 5)*
+```
+Question: Which shuttle stop gets skipped when the driver is behind schedule?
+Answer:
+The stop outside Fenwick Court is the one that gets skipped when the driver is behind schedule (transit_shuttle.txt).
+(Ground-truth source transit_shuttle.txt correctly identified and cited)
+```
 
 ## Verdicts
 
-<!-- MET or MISSED for each of the five, against the target you wrote last
-     unit — not a new one. Plus a sentence on how you decided. That sentence
-     matters most where it was close.
-
-     If your target said 4 of 5 and your runs came out 4, 3, 4, that's a MISS.
-     The target has to hold, not show up occasionally.
-
-     Milestone 2. -->
-
 | # | Criterion | Verdict | How I decided |
 |---|---|---|---|
-| 1 |  |  |  |
-| 2 |  |  |  |
-| 3 |  |  |  |
-| 4 |  |  |  |
-| 5 |  |  |  |
+| 1 | Retrieved chunk contains the answer | MET | All 3 trials scored 5/5 (100%), surpassing the 4 of 5 target; in every query, the top-k chunks included the text containing the ground-truth answer. |
+| 2 | Every answer names a source | MET | All 3 trials scored 5/5 (15 out of 15 generated responses), meeting the 5 of 5 target by explicitly naming source `.txt` documents. |
+| 3 | Gate stops out-of-corpus questions | MET | The relevance gate successfully stopped 5 of 5 out-of-scope questions (best distances 0.825 to 0.934, well above 0.60), exceeding the 4 of 5 target. |
+| 4 | Complete semantic thoughts with no mid-sentence cuts | MET | All 91 chunks across the indexed corpus begin on heading/sentence boundaries and end on valid punctuation (`.`, `!`, `?`), satisfying the 100% target. |
+| 5 | Ground-truth source attribution | MET | All 3 trials scored 5/5, exceeding the 4 of 5 target, as the model consistently cited the true ground-truth file rather than any top-k distractor. |
 
 ## Diagnoses
 
