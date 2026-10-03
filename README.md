@@ -196,23 +196,33 @@ The stop outside Fenwick Court is the one that gets skipped when the driver is b
 
 ## Diagnoses
 
-<!-- For each miss: which stage caused it, and how. The stage alone isn't
-     enough — you need the mechanism.
+While all five criteria formally scored **MET** against the initial unit 1 targets (4 of 5, and 100% on chunking), an honest audit of the run logs reveals that these targets were set relatively safe and masked critical vulnerabilities in the retrieval pipeline.
 
-     Not a diagnosis: "Question 3 didn't work."
-     A diagnosis:     "Question 3 asks about laundry costs. The answer is in
-                       one sentence that got split across two chunks, so
-                       neither chunk on its own contains it."
+### 1. Analysis of Pipeline Weaknesses & Near-Misses
 
-     The five stages: loading → chunking → embedding → retrieval → generation.
+- **Question 5 (Transit Shuttle — Stage: Retrieval / Embedding):**
+  - **Symptom:** In Question 5 (*"Which shuttle stop gets skipped when the driver is behind schedule?"*), the best distance was **0.4802**, which is uncomfortably close to the **0.60** cutoff. 
+  - **Mechanism:** The dense embedding model (`all-MiniLM-L6-v2`) matched on generic conversational tokens like *"behind"*, *"schedule"*, *"skipped"*, and *"driver"*. In a student-life corpus, these words match general discussions about class schedules, running late, and skipping dining hall meals. As a direct result, **4 of the top 5 retrieved chunks** were completely irrelevant dining hall follow-up documents (`dining_halden_hall_followup.txt`, `dining_kestrel_commons_followup.txt`, `dining_north_kitchen_followup.txt`, `dining_the_atrium_followup.txt`).
+  - **Near-Miss Impact:** The ground-truth document (`transit_shuttle.txt`) was retrieved at the very bottom (**rank 5**). If we had tightened Criterion 1 to *"The top 3 chunks include the answer"* or reduced `TOP_K` from 5 to 4, this question would have failed completely.
 
-     Look for a pattern. If three misses all ask about numbers, that's one
-     problem, not three.
+- **Question 3 (Fenwick Laundry — Stage: Retrieval):**
+  - **Symptom:** Alongside the correct laundry file, retrieval pulled in `dining_kestrel_commons_followup.txt` and `transit_walking.txt`.
+  - **Mechanism:** Generic phrases such as *"best time"* and *"avoid waiting"* created semantic drift towards dining peak hours and walking shortcuts.
 
-     Missed nothing? Say so, then say honestly whether your targets were set
-     low, and which one you'd tighten and to what.
+- **Question 4 (CS 210 Exams — Stage: Generation / Scorer matching):**
+  - **Symptom:** In Run 1, the automated judge flagged a failure despite the answer being factually accurate.
+  - **Mechanism:** The model generated: *"Yes, the midterms for CS 210 are curved, but the final is not curved."* The expects string was `"Midterms are curved"`. The model's insertion of the prepositional clause *"for CS 210"* broke the verbatim substring check.
 
-     Milestone 3. -->
+### 2. Systematic Pattern: Lexical Specificity Gap in Dense Embeddings
+
+Across our tests, the primary systematic flaw is that **pure dense vector search prioritizes broad semantic mood over exact entity names and keywords**. For queries with unique entities like `"shuttle"`, `"CS 210"`, or `"Fenwick Court"`, dense embeddings dilute the entity signal across generic conversational verbs.
+
+### 3. Target Tightness & Proposed Tightening
+
+Our targets in Unit 1 were set safe:
+- Criterion 1 asked for 4 of 5 test questions to have the answer in the retrieved chunks, with `TOP_K = 5`.
+- **How I would tighten it:** I would tighten Criterion 1 to: *"For at least 4 of 5 test questions, the answer is contained within the **top-3** retrieved chunks, and the top-ranked chunk (rank 1) is a ground-truth document in at least 4 of 5 questions."* 
+- Under this tightened standard, the current pure-dense retrieval pipeline **FAILS** because Question 5 ranked the true document at rank 5. This directly motivates our improvement in Milestone 4: adding **BM25 Hybrid Search**.
 
 ## The Improvement
 
